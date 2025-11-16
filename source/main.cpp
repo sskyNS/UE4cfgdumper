@@ -4,7 +4,9 @@
 #include <string.h>
 #include <algorithm>
 #include <vector>
-
+#include "Console.hpp"
+#include "Logger.hpp"
+#include "SDL.hpp"
 // Include the main libnx system header, for Switch development
 #include <switch.h>
 #include "dmntcht.h"
@@ -88,14 +90,14 @@ bool checkIfUE4game() {
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
 			char* result = searchString(buffer_c, (char*)test_4, memoryInfoBuffers[i].size);
 			if (result) {
-				printf("%s\n", result);
+				Console::Printf("%s\n", result);
 				ue4_sdk = result;
 				delete[] buffer_c;
 				return true;
 			}
 			result = searchString(buffer_c, (char*)test_5, memoryInfoBuffers[i].size);
 			if (result) {
-				printf("%s\n", result);
+				Console::Printf("%s\n", result);
 				ue4_sdk = result;
 				isUE5 = true;
 				delete[] buffer_c;
@@ -105,7 +107,7 @@ bool checkIfUE4game() {
 		}
 		i++;
 	}
-	printf("This game is not using Unreal Engine 4 or 5!\n");
+	Console::Printf("这个游戏使用的不是UE4或者UE5!\n");
 	return false;
 }
 
@@ -121,8 +123,6 @@ uint8_t testRUN() {
 	char32_t* utf32_string = new char32_t[size+1]();
 	utf8_to_utf32((uint32_t*)utf32_string, (const uint8_t*)UE4settingsArray[0].description, size+1);
 
-	consoleUpdate(NULL);
-
 	while (i < mappings_count) {
 		if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
 			if (memoryInfoBuffers[i].size > 200'000'000) {
@@ -132,24 +132,21 @@ uint8_t testRUN() {
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
 			char* result = searchString(buffer_c, (char*)UE4settingsArray[0].description, memoryInfoBuffers[i].size);
 			if (result) {
-				printf("Encoding: UTF-8\n");
+				Console::Printf("编码: UTF-8\n");
 				encoding = 8;
-				consoleUpdate(NULL);
 			}
 			if (!encoding) {
 				char16_t* result16 = searchString(buffer_c, utf16_string, memoryInfoBuffers[i].size);
 				if (result16) {
-					printf("Encoding: UTF-16\n");
+					Console::Printf("编码: UTF-16\n");
 					encoding = 16;
-					consoleUpdate(NULL);
 				}
 			}
 			if (!encoding) {
 				char32_t* result32 = searchString(buffer_c, utf32_string, memoryInfoBuffers[i].size);
 				if (result32) {
-					printf("Encoding: UTF-32\n");
+					Console::Printf("编码: UTF-32\n");
 					encoding = 32;
-					consoleUpdate(NULL);
 				}
 			}
 			delete[] buffer_c;
@@ -163,7 +160,7 @@ uint8_t testRUN() {
 	}	
 	delete[] utf16_string;
 	delete[] utf32_string;
-	printf("Encoding not detected...");
+	Console::Printf("未检测到编码...");
 	return encoding;
 }
 
@@ -183,7 +180,6 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 			for (size_t x = 0; x < memoryInfoBuffers[k].size / sizeof(uint64_t); x++) {
 				if (buffer_u[x] == string_address) {
 					pointer_address = memoryInfoBuffers[k].addr + x*8 - 8;
-					consoleUpdate(NULL);
 					break;
 				}
 			}
@@ -205,7 +201,7 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] <= 0x98)
 								{
 									pointer2_address = memoryInfoBuffers[l].addr + (x+1)*8;
-									printf(CONSOLE_GREEN "*" CONSOLE_RESET "Main offset: " CONSOLE_YELLOW "0x%lX" CONSOLE_RESET", cmd: " CONSOLE_YELLOW "%s " CONSOLE_RESET, pointer2_address - cheatMetadata.main_nso_extents.base, commandName);
+									Console::Printf("*主偏移: 0x%lX, 命令: %s ", pointer2_address - cheatMetadata.main_nso_extents.base, commandName);
 									uint64_t pointer = 0;
 									dmntchtReadCheatProcessMemory(pointer2_address, (void*)&pointer, 8);
 									uint32_t main_offset = pointer2_address - cheatMetadata.main_nso_extents.base;
@@ -213,20 +209,19 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 										if (type == 1) {
 											int data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
-											printf("int: " CONSOLE_YELLOW "%d\n" CONSOLE_RESET, data);
+											Console::Printf("整数: %d\n", data);
 											ue4_vector.push_back({commandName, false, data, 0.0, main_offset, 0});
 										}
 										else if (type == 2) {
 											float data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
-											printf("float: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, data);
+											Console::Printf("浮点数: %.4f\n", data);
 											ue4_vector.push_back({commandName, true, 0, data, main_offset, 0});
 										}
 										else {
-											printf("Unknown type: %d\n", type);
+											Console::Printf("未知类型: %d\n", type);
 										}
 									}
-									consoleUpdate(NULL);
 									delete[] buffer_u;
 									return true;
 								}
@@ -315,8 +310,7 @@ void SearchFramerate() {
 			CTS_final_address = memoryInfoBuffers[i].addr + CTS_diff;
 		}
 		else {
-			printf(CONSOLE_YELLOW "CustomTimeStep" CONSOLE_RESET " not found!\n");
-			consoleUpdate(NULL);
+			Console::Printf("未找到CustomTimeStep!\n");
 		}
 		for (size_t x = 0; x < mappings_count; x++) {
 			if ((memoryInfoBuffers[x].perm & Perm_Rx) != Perm_Rx && (memoryInfoBuffers[x].type == MemType_CodeMutable || memoryInfoBuffers[x].type == MemType_CodeWritable)) {
@@ -363,8 +357,7 @@ void SearchFramerate() {
 
 				static bool printed = false;
 				if (!printed) {
-					printf("Offset of " CONSOLE_YELLOW "FixedFrameRate" CONSOLE_RESET ": 0x%x\n", offset);
-					consoleUpdate(NULL);
+					Console::Printf("FixedFrameRate的偏移: 0x%x\n", offset);
 					printed = true;
 				}
 				if (CTS_final_address) {
@@ -395,18 +388,16 @@ void SearchFramerate() {
 				}
 				delete[] buffer;
 				if (offset2) {
-					printf("Offset of " CONSOLE_YELLOW "CustomTimeStep" CONSOLE_RESET ": 0x%x\n", offset2);
-					consoleUpdate(NULL);
+					Console::Printf("CustomTimeStep的偏移: 0x%x\n", offset2);
 					break;
 				}
 			}
 		}
 	}
 	if (!offset) {
-		printf(CONSOLE_CYAN "FixedFrameRate string was not found!" CONSOLE_RESET);
-		if (!isUE5) printf(" On older Unreal Engine 4 games it requires different method.");
-		printf("\n");
-		consoleUpdate(NULL);
+		Console::Printf("未找到FixedFrameRate字符串!");
+		if (!isUE5) Console::Printf(" 在较旧的Unreal Engine 4游戏中需要不同的方法。");
+		Console::Printf("\n");
 	}
 	for (size_t y = 0; y < mappings_count; y++) {
 		if (memoryInfoBuffers[y].addr != cheatMetadata.main_nso_extents.base) {
@@ -526,45 +517,42 @@ void SearchFramerate() {
 								GameEngine_ptr = cheatMetadata.main_nso_extents.base + main_offset;
 								break;
 						}
-						printf("Main offset of GameEngine pointer: " CONSOLE_YELLOW "0x%lX\n" CONSOLE_RESET, GameEngine_ptr - cheatMetadata.main_nso_extents.base);
+						Console::Printf("GameEngine指针的主偏移: 0x%lX\n", GameEngine_ptr - cheatMetadata.main_nso_extents.base);
 						uint64_t GameEngine = 0;
 						dmntchtReadCheatProcessMemory(GameEngine_ptr, (void*)&GameEngine, 8);
 						if (offset) {
 							uint32_t bitflags = 0;
 							dmntchtReadCheatProcessMemory(GameEngine + (offset - 4), (void*)&bitflags, 4);
-							printf("Bitflags: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, bitflags);
-							printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
-							printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
+							Console::Printf("位标志: 0x%x\n", bitflags);
+							Console::Printf("bUseFixedFrameRate布尔值: %x\n", (bool)(bitflags & 0x40));
+							Console::Printf("bSmoothFrameRate布尔值: %x\n", (bool)(bitflags & 0x20));
 							float FixedFrameRate = 0;
 							dmntchtReadCheatProcessMemory(GameEngine + offset, (void*)&FixedFrameRate, 4);
-							printf("FixedFrameRate: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, FixedFrameRate);
+							Console::Printf("FixedFrameRate: %.4f\n", FixedFrameRate);
 							ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4});
 						}
 						if (offset2) {
 							int CustomTimeStep = 0;
 							dmntchtReadCheatProcessMemory(GameEngine + offset2, (void*)&CustomTimeStep, 4);
-							printf("CustomTimeStep: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, CustomTimeStep);
+							Console::Printf("CustomTimeStep: 0x%x\n", CustomTimeStep);
 							ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2});
 						}
 					}
 					else {
-						printf("Second instruction is not expected LDR or STR! %s\n", insn -> decoded);
+						Console::Printf("第二条指令不是预期的LDR或STR! %s\n", insn -> decoded);
 						ArmadilloDone(&insn);
-						consoleUpdate(NULL);
 						skip_pattern[pattern_number] = true;
 						continue;
 					}
 				}
 				else {
-					printf("First instruction is not ADRP! %s\n", insn -> decoded);
+					Console::Printf("第一条指令不是ADRP! %s\n", insn -> decoded);
 					ArmadilloDone(&insn);
-					consoleUpdate(NULL);
 					skip_pattern[pattern_number] = true;
 					continue;
 				}
 			}
-			else printf("Couldn't find pattern for GameEngine struct!\n");
-			consoleUpdate(NULL);
+			else Console::Printf("未找到GameEngine结构的模式!\n");
 			delete[] buffer_two;
 			return;
 		}
@@ -575,8 +563,7 @@ void searchDescriptionsInRAM() {
 	size_t i = 0;
 	bool* UE4checkedList = new bool[UE4settingsArray.size()]();
 	size_t ue4checkedCount = 0;
-	printf("Mapping %ld / %ld\r", i+1, mappings_count);
-	consoleUpdate(NULL);
+	Console::Printf("映射 %ld / %ld\r", i+1, mappings_count);
 	while (i < mappings_count) {
 		if (ue4checkedCount == UE4settingsArray.size()) {
 			return;
@@ -598,8 +585,7 @@ void searchDescriptionsInRAM() {
 					ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
 					uint64_t string_address = memoryInfoBuffers[i].addr + diff;
 					if (searchPointerInMappings(string_address, UE4settingsArray[itr].commandName, UE4settingsArray[itr].type, itr)) {
-						printf("Mapping %ld / %ld\r", i+1, mappings_count);
-						consoleUpdate(NULL);
+						Console::Printf("映射 %ld / %ld\r", i+1, mappings_count);
 						ue4checkedCount += 1;
 						UE4checkedList[itr] = true;
 					}
@@ -609,7 +595,7 @@ void searchDescriptionsInRAM() {
 		}
 		i++;
 	}
-	printf("                                                \n");
+	Console::Printf("                                                \n");
 	for (size_t x = 0; x < UE4settingsArray.size(); x++) {
 		if (!UE4checkedList[x]) {
 			if (isUE5) {
@@ -702,31 +688,26 @@ void searchDescriptionsInRAM() {
 		if (UE4checkedList[x])
 			continue;
 		if (UE4alternativeDescriptions1.contains(UE4settingsArray[x].commandName) && !UE4toUE5alternativeDescriptions1.contains(UE4settingsArray[x].commandName) && !UE4toUE5alternativeDescriptions2.contains(UE4settingsArray[x].commandName)) {
-			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with UE4 alt description!\n", UE4settingsArray[x].commandName);
-			consoleUpdate(NULL);
+			Console::Printf("!: %s 即使使用UE4替代描述也未找到!\n", UE4settingsArray[x].commandName);
 			continue;
 		}
 		if (isUE5 && UE4toUE5alternativeDescriptions1.contains(UE4settingsArray[x].commandName) && !UE4toUE5alternativeDescriptions2.contains(UE4settingsArray[x].commandName)) {
-			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with UE5 alt 1 description!\n", UE4settingsArray[x].commandName);
-			consoleUpdate(NULL);
+			Console::Printf("!: %s 即使使用UE5替代描述1也未找到!\n", UE4settingsArray[x].commandName);
 			continue;
 		}
 		if (isUE5 && UE4toUE5alternativeDescriptions2.contains(UE4settingsArray[x].commandName)) {
-			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with UE5 alt 2 description!\n", UE4settingsArray[x].commandName);
-			consoleUpdate(NULL);
+			Console::Printf("!: %s 即使使用UE5替代描述2也未找到!\n", UE4settingsArray[x].commandName);
 			continue;
 		}
 		if (isUE5 && UE5DeprecatedUE4Settings.contains(UE4settingsArray[x].commandName)) {
-			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was deprecated on UE5!", UE4settingsArray[x].commandName);
+			Console::Printf("!: %s 在UE5中已弃用!", UE4settingsArray[x].commandName);
 			if (UE5DeprecatedUE4Settings[UE4settingsArray[x].commandName].compare("")) {
-				printf(CONSOLE_CYAN " %s" CONSOLE_RESET, UE5DeprecatedUE4Settings[UE4settingsArray[x].commandName].c_str());
+				Console::Printf(" %s", UE5DeprecatedUE4Settings[UE4settingsArray[x].commandName].c_str());
 			}
-			printf("\n");
-			consoleUpdate(NULL);
+			Console::Printf("\n");
 			continue;
 		}
-		printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", UE4settingsArray[x].commandName);
-		consoleUpdate(NULL);
+		Console::Printf("!: %s 未找到!\n", UE4settingsArray[x].commandName);
 	}
 	delete[] UE4checkedList;
 }
@@ -735,10 +716,8 @@ void searchDescriptionsInRAM_UE5() {
 	size_t i = 0;
 	bool* UE5checkedList = new bool[UE5settingsArray.size()]();
 	size_t ue5checkedCount = 0;
-	printf("\n---\nLooking for UE5 specific settings...\n---\n");
-	consoleUpdate(NULL);
-	printf("Mapping %ld / %ld\r", i+1, mappings_count);
-	consoleUpdate(NULL);
+	Console::Printf("\n---\n查找UE5特定设置...\n---\n");
+	Console::Printf("映射 %ld / %ld\r", i+1, mappings_count);
 	while (i < mappings_count) {
 		if (ue5checkedCount == UE5settingsArray.size()) {
 			return;
@@ -760,8 +739,7 @@ void searchDescriptionsInRAM_UE5() {
 					ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
 					uint64_t string_address = memoryInfoBuffers[i].addr + diff;
 					if (searchPointerInMappings(string_address, UE5settingsArray[itr].commandName, UE5settingsArray[itr].type, itr)) {
-						printf("Mapping %ld / %ld\r", i+1, mappings_count);
-						consoleUpdate(NULL);
+						Console::Printf("映射 %ld / %ld\r", i+1, mappings_count);
 						ue5checkedCount += 1;
 						UE5checkedList[itr] = true;
 					}
@@ -771,7 +749,7 @@ void searchDescriptionsInRAM_UE5() {
 		}
 		i++;
 	}
-	printf("                                                \n");
+	Console::Printf("                                                \n");
 	for (size_t x = 0; x < UE5settingsArray.size(); x++) {
 		if (UE5alternativeDescriptions1.contains(UE5settingsArray[x].commandName)) {
 			i = 0;
@@ -799,20 +777,17 @@ void searchDescriptionsInRAM_UE5() {
 			}
 		}
 		else if (!UE5checkedList[x]) {
-			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", UE5settingsArray[x].commandName);
-			consoleUpdate(NULL);
+			Console::Printf("!: %s 未找到!\n", UE5settingsArray[x].commandName);
 		}
 	}
 	for (size_t x = 0; x < UE5settingsArray.size(); x++) {
 		if (UE5checkedList[x])
 			continue;
 		if (UE5alternativeDescriptions1.contains(UE5settingsArray[x].commandName)) {
-			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with alt description!\n", UE5settingsArray[x].commandName);
-			consoleUpdate(NULL);
+			Console::Printf("!: %s 即使使用替代描述也未找到!\n", UE5settingsArray[x].commandName);
 			continue;
 		}
-		printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", UE5settingsArray[x].commandName);
-		consoleUpdate(NULL);
+		Console::Printf("!: %s 未找到!\n", UE5settingsArray[x].commandName);
 	}
 	delete[] UE5checkedList;
 }
@@ -827,7 +802,7 @@ void dumpAsCheats() {
 	snprintf(path, sizeof(path), "sdmc:/switch/UE4cfgdumper/%016lX/%016lX.txt", cheatMetadata.title_id, __builtin_bswap64(BID));
 	FILE* text_file = fopen(path, "w");
 	if (!text_file) {
-		printf("Couldn't create cheat file!");
+		Console::Printf("无法创建作弊文件!");
 		return;
 	}
 	for (size_t i = 0; i < ue4_vector.size(); i++) {
@@ -869,9 +844,9 @@ void dumpAsCheats() {
 		}
 	}
 	fclose(text_file);
-	printf("Dumped cheat file to:\n");
-	printf(path);
-	printf("\n");
+	Console::Printf("作弊文件已导出到:\n");
+	Console::Printf(path);
+	Console::Printf("\n");
 }
 
 void dumpAsLog() {
@@ -884,7 +859,7 @@ void dumpAsLog() {
 	snprintf(path, sizeof(path), "sdmc:/switch/UE4cfgdumper/%016lX/%016lX.log", cheatMetadata.title_id, __builtin_bswap64(BID));	
 	FILE* text_file = fopen(path, "w");
 	if (!text_file) {
-		printf("Couldn't create log file!");
+		Console::Printf("无法创建日志文件!");
 		return;
 	}
 	fwrite(ue4_sdk.c_str(), ue4_sdk.size(), 1, text_file);
@@ -892,37 +867,62 @@ void dumpAsLog() {
 	for (size_t i = 0; i < ue4_vector.size(); i++) {
 		fwrite(ue4_vector[i].iterator, strlen(ue4_vector[i].iterator), 1, text_file);
 		char temp[128] = "";
-		snprintf(temp, sizeof(temp), ", main_offset: 0x%X + 0x%X, ", ue4_vector[i].offset, ue4_vector[i].add);
+		snprintf(temp, sizeof(temp), ", 主偏移: 0x%X + 0x%X, ", ue4_vector[i].offset, ue4_vector[i].add);
 		fwrite(temp, strlen(temp), 1, text_file);
 		if (!strcmp("FixedFrameRate", ue4_vector[i].iterator)) {
-			snprintf(temp, sizeof(temp), "flags: 0x%x, bUseFixedFrameRate: %d, bSmoothFrameRate: %d, ", ue4_vector[i].default_value_int, (bool)(ue4_vector[i].default_value_int & 0x40), (bool)(ue4_vector[i].default_value_int & 0x20));
+			snprintf(temp, sizeof(temp), "标志: 0x%x, bUseFixedFrameRate: %d, bSmoothFrameRate: %d, ", ue4_vector[i].default_value_int, (bool)(ue4_vector[i].default_value_int & 0x40), (bool)(ue4_vector[i].default_value_int & 0x20));
 			fwrite(temp, strlen(temp), 1, text_file);
 		}
 		if (ue4_vector[i].isFloat) {
 			int temp_val = 0;
 			memcpy(&temp_val, &ue4_vector[i].default_value_float, 4);
-			snprintf(temp, sizeof(temp), "type: float %.5f / 0x%X\n", ue4_vector[i].default_value_float, temp_val);
+			snprintf(temp, sizeof(temp), "类型: 浮点数 %.5f / 0x%X\n", ue4_vector[i].default_value_float, temp_val);
 		}
 		else {
-			snprintf(temp, sizeof(temp), "type: int %d / 0x%X\n", ue4_vector[i].default_value_int, ue4_vector[i].default_value_int);
+			snprintf(temp, sizeof(temp), "类型: 整数 %d / 0x%X\n", ue4_vector[i].default_value_int, ue4_vector[i].default_value_int);
 		}
 		fwrite(temp, strlen(temp), 1, text_file);
 	}
 	fclose(text_file);
-	printf("Dumped log file to:\n");
-	printf(path);	
-	printf("\n");
+	Console::Printf("日志文件已导出到:\n");
+	Console::Printf(path);	
+	Console::Printf("\n");
 }
 
-// Main program entrypoint
 int main(int argc, char* argv[])
 {
-	// This example uses a text console, as a simple way to output text to the screen.
-	// If you want to write a software-rendered graphics application,
-	//   take a look at the graphics/simplegfx example, which uses the libnx Framebuffer API instead.
-	// If on the other hand you want to write an OpenGL based application,
-	//   take a look at the graphics/opengl set of examples, which uses EGL instead.
-	consoleInit(NULL);
+    // 初始化SDL系统
+    Logger::Initialize();
+
+    if (!SDL::Initialize("UE4cfgdumper", 1280, 720)) {
+        Logger::Log("初始化SDL错误: %s", SDL::GetErrorString());
+        return 1;
+    }
+
+    if (!SDL::Text::Initialize()) {
+        Logger::Log("初始化SDL::Text错误: %s", SDL::GetErrorString());
+        SDL::Exit();
+        return 1;
+    }
+
+    SDL::Color blueColor;
+    blueColor.Raw = 0x00FFFFFF;
+    SDL::Text::AddColorCharacter(L'^', blueColor); // 蓝色
+    
+    SDL::Color greenColor;
+    greenColor.Raw = 0x00FF00FF;
+    SDL::Text::AddColorCharacter(L'*', greenColor); // 绿色  
+    
+    SDL::Color redColor;
+    redColor.Raw = 0xFF0000FF;
+    SDL::Text::AddColorCharacter(L'>', redColor); // 红色
+    
+    SDL::Color yellowColor;
+    yellowColor.Raw = 0xFFFF00FF;
+    SDL::Text::AddColorCharacter(L'!', yellowColor); // 黄色
+
+    Console::SetFontSize(20);
+    Console::SetMaxLineCount(27);
 
 	// Configure our supported input layout: a single player with standard controller styles
 	padConfigureInput(1, HidNpadStyleSet_NpadStandard);
@@ -933,18 +933,18 @@ int main(int argc, char* argv[])
 
 	bool error = false;
 	if (!isServiceRunning("dmnt:cht")) {
-		printf("DMNT:CHT not detected!\n");
+		Console::Printf(">未检测到DMNT:CHT!>\n");
 		error = true;
 	}
 	pmdmntInitialize();
 	uint64_t PID = 0;
 	if (R_FAILED(pmdmntGetApplicationProcessId(&PID))) {
-		printf("Game not initialized.\n");
+		Console::Printf(">游戏未初始化.>\n");
 		error = true;
 	}
 	pmdmntExit();
 	if (error) {
-		printf("Press + to exit.");
+		Console::Printf("按 + 退出.");
 		while (appletMainLoop()) {   
 			// Scan the gamepad. This should be done once for each frame
 			padUpdate(&pad);
@@ -956,17 +956,12 @@ int main(int argc, char* argv[])
 			if (kDown & HidNpadButton_Plus)
 				break; // break in order to return to hbmenu
 
-			// Your code goes here
-
-			// Update the console, sending a new frame to the display
-			consoleUpdate(NULL);
 		}
 	}
 	else {
 		pmdmntExit();
 		size_t availableHeap = checkAvailableHeap();
-		printf("Available Heap: %ld MB\n", (availableHeap / (1024 * 1024)));
-		consoleUpdate(NULL);
+		Console::Printf("可用堆: *%ld* MB\n", (availableHeap / (1024 * 1024)));
 		dmntchtInitialize();
 		bool hasCheatProcess = false;
 		dmntchtHasCheatProcess(&hasCheatProcess);
@@ -976,27 +971,26 @@ int main(int argc, char* argv[])
 
 		Result res = dmntchtGetCheatProcessMetadata(&cheatMetadata);
 		if (res)
-			printf("dmntchtGetCheatProcessMetadata ret: 0x%x\n", res);
+			Console::Printf(">dmntchtGetCheatProcessMetadata 返回: 0x%x>\n", res);
 
 		res = dmntchtGetCheatProcessMappingCount(&mappings_count);
 		if (res)
-			printf("dmntchtGetCheatProcessMappingCount ret: 0x%x\n", res);
-		else printf("Mapping count: %ld\n", mappings_count);
+			Console::Printf(">dmntchtGetCheatProcessMappingCount 返回: 0x%x>\n", res);
+		else Console::Printf("映射数量: *%ld*\n", mappings_count);
 
 		memoryInfoBuffers = new MemoryInfo[mappings_count];
 
 		res = dmntchtGetCheatProcessMappings(memoryInfoBuffers, mappings_count, 0, &mappings_count);
 		if (res)
-			printf("dmntchtGetCheatProcessMappings ret: 0x%x\n", res);
+			Console::Printf(">dmntchtGetCheatProcessMappings 返回: 0x%x>\n", res);
 
 		//Test run
 
 		if (checkIfUE4game() && (utf_encoding = testRUN())) {
 			bool FullScan = true;
-			printf("\n----------\nPress A for Full Scan\n");
-			printf("Press X for Base Scan (it excludes FixedFrameRate and CustomTimeStep)\n");
-			printf("Press + to Exit\n\n");
-			consoleUpdate(NULL);
+			Console::Printf("\n^----------^\n按 A 进行完整扫描\n");
+			Console::Printf("按 X 进行基础扫描(排除FixedFrameRate和CustomTimeStep)\n");
+			Console::Printf("按 + 退出程序\n\n");
 			while (appletMainLoop()) {   
 				padUpdate(&pad);
 
@@ -1007,7 +1001,8 @@ int main(int argc, char* argv[])
 
 				if (kDown & HidNpadButton_Plus) {
 					dmntchtExit();
-					consoleExit(NULL);
+                    SDL::Text::Exit();
+                    SDL::Exit();
 					return 0;
 				}
 				
@@ -1015,17 +1010,16 @@ int main(int argc, char* argv[])
 					FullScan = false;
 					break;
 				}
+
 			}
-			printf("Searching RAM...\n\n");
-			consoleUpdate(NULL);
+			Console::Printf("正在搜索RAM...\n\n");
 			appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
 			searchDescriptionsInRAM();
 			if (isUE5) searchDescriptionsInRAM_UE5();
-			printf("                                                \n");
+			Console::Printf("                                                \n");
 			if (FullScan) SearchFramerate();
-			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
-			printf(CONSOLE_WHITE "Search is finished!\n");
-			consoleUpdate(NULL);
+			Console::Printf("\n^---------------------------------------------^\n\n");
+			Console::Printf("搜索完成!\n");
 			dumpAsCheats();
 			dumpAsLog();
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
@@ -1033,7 +1027,7 @@ int main(int argc, char* argv[])
 		
 		delete[] memoryInfoBuffers;
 		dmntchtExit();
-		printf("Press + to exit.");
+		Console::Printf("按 + 退出.");
 		while (appletMainLoop()) {   
 			// Scan the gamepad. This should be done once for each frame
 			padUpdate(&pad);
@@ -1044,17 +1038,12 @@ int main(int argc, char* argv[])
 
 			if (kDown & HidNpadButton_Plus)
 				break; // break in order to return to hbmenu
-
-			// Your code goes here
-
-			// Update the console, sending a new frame to the display
-			consoleUpdate(NULL);
 		}
 	}
 
-	// Deinitialize and clean up resources used by the console (important!)
+	// Deinitialize and clean up resources
 	ue4_vector.clear();
-	consoleExit(NULL);
+    SDL::Text::Exit();
+    SDL::Exit();
 	return 0;
-
 }
